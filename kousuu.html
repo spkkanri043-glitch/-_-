@@ -271,7 +271,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build32</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build33</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -619,7 +619,7 @@ async function saveToSheets(){
       await sendInChunks_(url,'savecustchunk','&cust='+encodeURIComponent(cust),b64,nonce,cust);
       toast(`Sheetsへ保存中… (${ci+1}/${custs.length+1}) ${cust} 完了`);
     }
-    const metaJson=JSON.stringify(state.capacity);
+    const metaJson=JSON.stringify({capacity:state.capacity,roster:state.roster,safetyPct:state.safetyPct});
     const metaB64=btoa(unescape(encodeURIComponent(metaJson)));
     await sendInChunks_(url,'savemetachunk','',metaB64,nonce,'共通設定');
     toast('Sheetsへ保存しました（確認済み・取引先ごとに'+custs.length+'シート）');
