@@ -273,7 +273,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build21</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build22</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -597,7 +597,7 @@ function testGas(){
   const url=getGasUrl();if(!url){alert('GAS WebアプリURLを入力してください。');return;}saveGasUrl();
   const cb='__gas_pg_'+Date.now(),s=document.createElement('script');
   window[cb]=res=>{delete window[cb];s.remove();
-    if(res&&res.ok){toast('接続OK'+(res.ver?(' v'+res.ver):'')+' '+(res.hasData?('／ 保存データあり'+(res.ts?'（'+res.ts+'）':'')):'／ データ未保存'));if(res.lastError)alert('前回の保存でサーバ側エラーが記録されています:\n'+res.lastError);}
+    if(res&&res.ok){toast('接続OK'+(res.ver?(' v'+res.ver):'')+' '+(res.hasData?('／ 保存データあり'+(res.ts?'（'+res.ts+'）':'')):'／ データ未保存')+'／ POST受信回数:'+(res.postHits||'0'));if(res.lastError)alert('前回の保存でサーバ側エラーが記録されています:\n'+res.lastError);}
     else alert('応答が不正です。GASコード／デプロイをご確認ください。');};
   s.onerror=()=>{delete window[cb];s.remove();alert('接続できません。\n・URLは末尾が /exec か\n・デプロイのアクセス権は「全員」か\nをご確認ください。');};
   s.src=url+(url.includes('?')?'&':'?')+'action=ping&callback='+cb;document.body.appendChild(s);
@@ -605,7 +605,6 @@ function testGas(){
 function loadFromSheets(){const url=getGasUrl();if(!url){alert('GAS WebアプリURLを入力してください。');return;}saveGasUrl();const cb='__gas_cb_'+Date.now();const s=document.createElement('script');window[cb]=res=>{try{if(res&&res.data){applySnapshot(res.data);fillPeriodSel();renderAll();saveLocal(true);toast('Sheetsから読み込みました');}else toast('Sheets側にデータがありません');}catch(e){alert('読込エラー: '+e.message);}delete window[cb];s.remove();};s.onerror=()=>{alert('読込に失敗しました。URL/デプロイ設定をご確認ください。');delete window[cb];s.remove();};s.src=url+(url.includes('?')?'&':'?')+'action=load&callback='+cb;document.body.appendChild(s);}
 function openGasUrl(){const url=getGasUrl();if(!url){alert('GAS WebアプリURLを入力してください。');return;}saveGasUrl();window.open(url+(url.includes('?')?'&':'?')+'action=ping','_blank');}
 const GASCODE=`// ▼ 保存先シートのURL全体（またはID）を貼り付け（URLならIDを自動抽出）。
-// スプレッドシートの「拡張機能→Apps Script」から作った場合は空のままでOK。
 var SHEET_ID = '';
 
 function ssId_(){ var s=String(SHEET_ID||'').trim(); var i=s.indexOf('/d/'); if(i>=0){ s=s.substring(i+3); var j=s.indexOf('/'); if(j>=0) s=s.substring(0,j); } return s; }
@@ -617,17 +616,23 @@ function doGet(e){
   var sh=sheet_();
   var a1=sh.getRange('A1').getValue(), ts=sh.getRange('B1').getValue();
   var nonce=sh.getRange('C1').getValue(), lastErr=sh.getRange('D1').getValue();
+  var hit=sh.getRange('E1').getValue();
   var out;
-  if(p.action==='ping'){ out={ok:true,ver:'4',hasData:!!a1,ts:ts?String(ts):'',nonce:nonce,lastError:lastErr?String(lastErr):''}; }
+  if(p.action==='ping'){ out={ok:true,ver:'5',hasData:!!a1,ts:ts?String(ts):'',nonce:nonce,lastError:lastErr?String(lastErr):'',postHits:hit?String(hit):'0'}; }
   else{ var data=null; try{ if(a1) data=JSON.parse(a1); }catch(err){} out={data:data,ts:ts?String(ts):'',nonce:nonce}; }
-  return ContentService.createTextOutput(cb+'('+JSON.stringify(out)+')')
-    .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  return ContentService.createTextOutput(cb+'('+JSON.stringify(out)+')').setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 function doPost(e){
   var res={ok:false};
+  var sh;
+  try{ sh=sheet_(); }catch(err0){
+    return ContentService.createTextOutput(JSON.stringify({ok:false,error:'sheet_() failed: '+String(err0)})).setMimeType(ContentService.MimeType.JSON);
+  }
+  // ① この関数が呼ばれた事実を無条件で記録（カウンターを+1）
+  try{ var h=Number(sh.getRange('E1').getValue())||0; sh.getRange('E1').setValue(h+1); }catch(eh){}
   try{
-    var sh=sheet_();
     var raw=(e&&e.parameter&&e.parameter.payload)?e.parameter.payload:(e&&e.postData?e.postData.contents:'{}');
+    sh.getRange('F1').setValue(raw.substring(0,200)); // ② 受信生データの先頭200文字を記録
     var body=JSON.parse(raw);
     if(body.action==='save'){
       var now=new Date();
@@ -636,10 +641,13 @@ function doPost(e){
       sh.getRange('C1').setValue(body.nonce||'');
       sh.getRange('D1').setValue('');
       res={ok:true,ts:Utilities.formatDate(now,Session.getScriptTimeZone(),'MM/dd HH:mm')};
+    } else {
+      res={ok:false,error:'action mismatch: '+body.action};
     }
-  }catch(err){ res.error=String(err); try{ sheet_().getRange('D1').setValue(String(err)); }catch(e2){} }
+  }catch(err){ res.error=String(err); try{ sh.getRange('D1').setValue(String(err)); }catch(e2){} }
   return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
-}`;
+}
+function testSetup(){ var sh=sheet_(); Logger.log('OK: '+sh.getParent().getName()+' に接続できました'); }`;
 function toggleGasCode(){const el=document.getElementById('gasCode');if(el.style.display==='none'){el.textContent=GASCODE;el.style.display='block';}else el.style.display='none';}
 function setupDropzone(){const dz=document.getElementById('dz');
   ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag');}));
