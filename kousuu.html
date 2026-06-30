@@ -273,7 +273,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build29</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build30</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -574,87 +574,59 @@ async function saveToSheets(){
   const url=getGasUrl();if(!url){alert('GAS WebアプリURLを入力してください。');return;}
   saveGasUrl();
   const nonce=String(Date.now());
-  const json=JSON.stringify(snapshot());
-  let b64;
+  const custs=CUSTS();
+  toast(`Sheetsへ保存中… (0/${custs.length+1})`);
   try{
-    const cs=new CompressionStream('gzip');
-    const blob=new Blob([json]);
-    const compressed=await new Response(blob.stream().pipeThrough(cs)).arrayBuffer();
-    let bin='';const bytes=new Uint8Array(compressed);
-    for(let i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
-    b64=btoa(bin);
-  }catch(e){console.log('[save] compression unsupported, fallback to plain b64:',e&&e.message);
-    b64=btoa(unescape(encodeURIComponent(json)));}
-  // チャンクは「URLエンコード後の長さ」が一定になるよう、文字を1個ずつ詰めて作る
-  const MAXQ=4500; // 1チャンクのURLエンコード後の最大文字数
-  function buildChunks(s){
-    const chunks=[];let cur='';
-    for(let p=0;p<s.length;p++){
-      const ch=s[p];
-      const enc=encodeURIComponent(ch);
-      if((cur.length?encodeURIComponent(cur).length:0)+enc.length>MAXQ){chunks.push(cur);cur='';}
-      cur+=ch;
-    }
-    if(cur)chunks.push(cur);
-    return chunks;
-  }
-  const chunks=buildChunks(b64);
-  const total=chunks.length;
-  console.log('[saveToSheets] url=',url,' b64 chars=',b64.length,' chunks=',total);
-  toast(`Sheetsへ保存中… (0/${total})`);
-  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-  try{
-    for(let i=0;i<total;i++){
-      const chunk=chunks[i];
-      const encChunk=encodeURIComponent(chunk);
-      const qs='action=savechunk&nonce='+encodeURIComponent(nonce)+'&i='+i+'&n='+total+'&gz=1&d='+encChunk;
-      console.log('[saveToSheets] chunk',i+1,'/',total,'raw len=',chunk.length,'enc len=',encChunk.length,'full url len=',(url+'?'+qs).length);
+    for(let ci=0;ci<custs.length;ci++){
+      const cust=custs[ci];
+      const partsC=state.parts.filter(p=>p.customer===cust);
+      const monthlyC=state.monthly.filter(m=>m.customer===cust);
+      const json=JSON.stringify({parts:partsC,monthly:monthlyC});
+      const plainB64=btoa(unescape(encodeURIComponent(json)));
+      const qs='action=savecust&nonce='+encodeURIComponent(nonce)+'&cust='+encodeURIComponent(cust)+'&d='+encodeURIComponent(plainB64);
+      console.log('[saveToSheets] cust=',cust,'json bytes=',new Blob([json]).size,'url len=',(url+'?'+qs).length);
       let res=null,lastErr=null;
-      for(let attempt=1;attempt<=4;attempt++){
-        try{
-          res=await gget_(url+'?'+qs);
-          if(res&&res.ok===true)break;
-          lastErr=new Error('server said ok=false: '+(res&&res.error));
-        }catch(e){lastErr=e;}
-        console.log('[saveToSheets] chunk',i+1,'/',total,'attempt',attempt,'failed:',lastErr&&lastErr.message);
-        if(attempt<4){toast(`Sheetsへ保存中… (${i+1}/${total}) 再試行${attempt}`);await sleep(600*attempt);}
+      for(let attempt=1;attempt<=3;attempt++){
+        try{res=await gget_(url+'?'+qs);if(res&&res.ok===true)break;lastErr=new Error(res&&res.error);}
+        catch(e){lastErr=e;}
+        if(attempt<3){toast(`Sheetsへ保存中… ${cust} 再試行${attempt}`);await new Promise(r=>setTimeout(r,700*attempt));}
       }
-      console.log('[saveToSheets] chunk',i+1,'/',total,'final resp=',res);
-      if(!res||res.ok!==true){
-        console.log('[saveToSheets] FAILING CHUNK preview:',chunk.substring(0,60),'...',chunk.substring(chunk.length-20));
-        throw lastErr||new Error('chunk '+i+' failed after retries');
-      }
-      toast(`Sheetsへ保存中… (${i+1}/${total})`);
-      if(i<total-1)await sleep(350);
+      if(!res||res.ok!==true)throw new Error(cust+': '+(lastErr&&lastErr.message));
+      toast(`Sheetsへ保存中… (${ci+1}/${custs.length+1}) ${cust} 完了`);
+      await new Promise(r=>setTimeout(r,300));
     }
-    toast('Sheetsへ保存しました（確認済み）');
+    const metaJson=JSON.stringify(state.capacity);
+    const metaB64=btoa(unescape(encodeURIComponent(metaJson)));
+    const qsMeta='action=savemeta&nonce='+encodeURIComponent(nonce)+'&d='+encodeURIComponent(metaB64);
+    const resMeta=await gget_(url+'?'+qsMeta);
+    if(!resMeta||resMeta.ok!==true)throw new Error('共通データ保存失敗: '+(resMeta&&resMeta.error));
+    toast('Sheetsへ保存しました（確認済み・取引先ごとに'+custs.length+'シート）');
   }catch(e){
     console.log('[saveToSheets] FAILED:',e);
-    alert('保存に失敗しました。\n'+e.message+'\n\nF12コンソールに詳細ログ（特に full url len の数値）があります。それを教えていただければ次の手を確定できます。');
+    alert('保存に失敗しました。\n'+e.message+'\n\nF12コンソールに詳細ログがあります。');
   }
-}
-function verifyByLoad(url,nonce,attempt){
-  attempt=attempt||1;
-  const cb='__gas_vb_'+Date.now(),s=document.createElement('script');
-  window[cb]=res=>{delete window[cb];s.remove();
-    if(res&&res.nonce!=null&&String(res.nonce)===String(nonce)){toast('Sheetsへ保存しました（確認済み'+(res.ts?' '+res.ts:'')+'）');return;}
-    if(attempt<5){setTimeout(()=>verifyByLoad(url,nonce,attempt+1),1500);return;}
-    alert('保存が確認できませんでした。'+(res&&res.lastError?('\n▶サーバ側エラー: '+res.lastError):'')+'\n数十秒おいて「接続テスト」で「保存データあり」に変われば保存成功です。\nそれでもダメなら：v4で再デプロイ／アクセス権「全員」／URL末尾 /exec を確認。');};
-  s.onerror=()=>{delete window[cb];s.remove();
-    if(attempt<5){setTimeout(()=>verifyByLoad(url,nonce,attempt+1),1500);return;}
-    alert('保存後の確認に失敗しました。URL／デプロイ設定をご確認ください。');};
-  s.src=url+(url.includes('?')?'&':'?')+'action=ping&callback='+cb;document.body.appendChild(s);
 }
 function testGas(){
   const url=getGasUrl();if(!url){alert('GAS WebアプリURLを入力してください。');return;}saveGasUrl();
   const cb='__gas_pg_'+Date.now(),s=document.createElement('script');
   window[cb]=res=>{delete window[cb];s.remove();
-    if(res&&res.ok){toast('接続OK'+(res.ver?(' v'+res.ver):'')+' '+(res.hasData?('／ 保存データあり'+(res.ts?'（'+res.ts+'）':'')):'／ データ未保存')+'／ POST受信回数:'+(res.postHits||'0'));if(res.lastError)alert('前回の保存でサーバ側エラーが記録されています:\n'+res.lastError);}
+    if(res&&res.ok){toast('接続OK'+(res.ver?(' v'+res.ver):'')+' '+(res.hasData?('／ 保存データあり（取引先'+(res.custCount||0)+'件）'+(res.ts?'（'+res.ts+'）':'')):'／ データ未保存'));if(res.lastError)alert('前回の保存でサーバ側エラーが記録されています:\n'+res.lastError);}
     else alert('応答が不正です。GASコード／デプロイをご確認ください。');};
   s.onerror=()=>{delete window[cb];s.remove();alert('接続できません。\n・URLは末尾が /exec か\n・デプロイのアクセス権は「全員」か\nをご確認ください。');};
   s.src=url+(url.includes('?')?'&':'?')+'action=ping&callback='+cb;document.body.appendChild(s);
 }
-function loadFromSheets(){const url=getGasUrl();if(!url){alert('GAS WebアプリURLを入力してください。');return;}saveGasUrl();const cb='__gas_cb_'+Date.now();const s=document.createElement('script');window[cb]=res=>{try{if(res&&res.data){applySnapshot(res.data);fillPeriodSel();renderAll();saveLocal(true);toast('Sheetsから読み込みました');}else toast('Sheets側にデータがありません');}catch(e){alert('読込エラー: '+e.message);}delete window[cb];s.remove();};s.onerror=()=>{alert('読込に失敗しました。URL/デプロイ設定をご確認ください。');delete window[cb];s.remove();};s.src=url+(url.includes('?')?'&':'?')+'action=load&callback='+cb;document.body.appendChild(s);}
+function loadFromSheets(){
+  const url=getGasUrl();if(!url){alert('GAS WebアプリURLを入力してください。');return;}
+  saveGasUrl();toast('Sheetsから読み込み中…');
+  gget_(url+'?action=loadall').then(res=>{
+    if(res&&res.ok&&res.data){
+      applySnapshot(res.data);fillPeriodSel();renderAll();saveLocal(true);
+      toast('Sheetsから読み込みました（取引先別シートを結合）');
+    }else{
+      toast('Sheets側にデータがありません'+(res&&res.error?('：'+res.error):''));
+    }
+  }).catch(e=>alert('読込エラー: '+e.message));
+}
 function openGasUrl(){const url=getGasUrl();if(!url){alert('GAS WebアプリURLを入力してください。');return;}saveGasUrl();window.open(url+(url.includes('?')?'&':'?')+'action=ping','_blank');}
 const GASCODE=`// ▼ 保存先シートのURL全体（またはID）を貼り付け（URLならIDを自動抽出）。
 var SHEET_ID = '';
