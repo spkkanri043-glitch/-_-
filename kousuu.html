@@ -273,7 +273,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build27</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build28</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -566,7 +566,7 @@ function gget_(url){
     let done=false;
     const timer=setTimeout(()=>{if(!done){done=true;delete window[cb];s.remove();reject(new Error('timeout'));}},30000);
     window[cb]=res=>{if(done)return;done=true;clearTimeout(timer);delete window[cb];s.remove();resolve(res);};
-    s.onerror=()=>{if(done)return;done=true;clearTimeout(timer);delete window[cb];s.remove();reject(new Error('script load error'));};
+    s.onerror=(ev)=>{if(done)return;done=true;clearTimeout(timer);delete window[cb];s.remove();reject(new Error('script load error (network/HTTP failure before JS could run)'));};
     s.src=url+(url.includes('?')?'&':'?')+'callback='+cb;document.body.appendChild(s);
   });
 }
