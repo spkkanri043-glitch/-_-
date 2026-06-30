@@ -273,7 +273,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build18</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build19</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -565,7 +565,7 @@ async function saveToSheets(){
   const nonce=String(Date.now());
   const payload=JSON.stringify({action:'save',nonce:nonce,data:snapshot()});
   // POST（no-cors）：応答は読めないが doPost は実行され保存される。CORSエラーも出ない。
-  try{fetch(url,{method:'POST',mode:'no-cors',body:payload});}catch(e){}
+  try{fetch(url,{method:'POST',body:payload}).catch(()=>{});}catch(e){}
   // 保険：フォーム送信も投げておく
   try{
     let ifr=document.getElementById('gas_ifr');
