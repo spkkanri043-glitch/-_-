@@ -559,18 +559,26 @@ function restoreJSON(input){const f=input.files[0];if(!f)return;const rd=new Fil
 function renderSave(){const ck=document.getElementById('autosaveCk');if(ck)ck.checked=autosave;const u=document.getElementById('gasUrl');if(u&&!u.value){try{u.value=localStorage.getItem(LS_URL)||'';}catch(e){}}setSaveStatus(_lastSaved!=='');}
 function getGasUrl(){return (document.getElementById('gasUrl')?.value||'').trim();}
 function saveGasUrl(){try{localStorage.setItem(LS_URL,getGasUrl());}catch(e){}}
-function saveToSheets(){
+async function saveToSheets(){
   const url=getGasUrl();if(!url){alert('GAS WebアプリURLを入力してください。');return;}
   saveGasUrl();toast('Sheetsへ保存中…');
   const nonce=String(Date.now());
   const payload=JSON.stringify({action:'save',nonce:nonce,data:snapshot()});
-  try{fetch(url,{method:'POST',body:payload});}catch(_){}
-  let ifr=document.getElementById('gas_ifr');
-  if(!ifr){ifr=document.createElement('iframe');ifr.id='gas_ifr';ifr.name='gas_ifr';ifr.style.display='none';document.body.appendChild(ifr);}
-  const f=document.createElement('form');f.method='POST';f.action=url;f.target='gas_ifr';f.style.display='none';
-  const inp=document.createElement('input');inp.type='hidden';inp.name='payload';inp.value=payload;f.appendChild(inp);
-  document.body.appendChild(f);f.submit();
-  setTimeout(()=>{try{f.remove();}catch(_){}},15000);
+  // ① 素直なfetch（手動テストで成功した方式）。応答が読めれば即確定。
+  try{
+    const r=await fetch(url,{method:'POST',body:payload,redirect:'follow'});
+    const t=await r.text();
+    if(t&&t.indexOf('"ok":true')>=0){const m=t.match(/"ts":"([^"]*)"/);toast('Sheetsへ保存しました'+(m?'（'+m[1]+'）':'（確認済み）'));return;}
+  }catch(e){}
+  // ② 応答が読めない/失敗時：フォーム送信もしておき、トークン照合で確認
+  try{
+    let ifr=document.getElementById('gas_ifr');
+    if(!ifr){ifr=document.createElement('iframe');ifr.id='gas_ifr';ifr.name='gas_ifr';ifr.style.display='none';document.body.appendChild(ifr);}
+    const f=document.createElement('form');f.method='POST';f.action=url;f.target='gas_ifr';f.style.display='none';
+    const inp=document.createElement('input');inp.type='hidden';inp.name='payload';inp.value=payload;f.appendChild(inp);
+    document.body.appendChild(f);f.submit();
+    setTimeout(()=>{try{f.remove();}catch(_){}},15000);
+  }catch(e){}
   setTimeout(()=>verifyByLoad(url,nonce,1),1600);
 }
 function verifyByLoad(url,nonce,attempt){
