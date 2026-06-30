@@ -273,7 +273,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build28</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build29</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -586,7 +586,7 @@ async function saveToSheets(){
   }catch(e){console.log('[save] compression unsupported, fallback to plain b64:',e&&e.message);
     b64=btoa(unescape(encodeURIComponent(json)));}
   // チャンクは「URLエンコード後の長さ」が一定になるよう、文字を1個ずつ詰めて作る
-  const MAXQ=900; // 1チャンクのURLエンコード後の最大文字数
+  const MAXQ=4500; // 1チャンクのURLエンコード後の最大文字数
   function buildChunks(s){
     const chunks=[];let cur='';
     for(let p=0;p<s.length;p++){
