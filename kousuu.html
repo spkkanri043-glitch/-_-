@@ -273,7 +273,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build25</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build26</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -585,15 +585,30 @@ async function saveToSheets(){
     b64=btoa(bin);
   }catch(e){console.log('[save] compression unsupported, fallback to plain b64:',e&&e.message);
     b64=btoa(unescape(encodeURIComponent(json)));}
-  const CH=1200;
-  const total=Math.ceil(b64.length/CH);
+  // チャンクは「URLエンコード後の長さ」が一定になるよう、文字を1個ずつ詰めて作る
+  const MAXQ=900; // 1チャンクのURLエンコード後の最大文字数
+  function buildChunks(s){
+    const chunks=[];let cur='';
+    for(let p=0;p<s.length;p++){
+      const ch=s[p];
+      const enc=encodeURIComponent(ch);
+      if((cur.length?encodeURIComponent(cur).length:0)+enc.length>MAXQ){chunks.push(cur);cur='';}
+      cur+=ch;
+    }
+    if(cur)chunks.push(cur);
+    return chunks;
+  }
+  const chunks=buildChunks(b64);
+  const total=chunks.length;
   console.log('[saveToSheets] url=',url,' b64 chars=',b64.length,' chunks=',total);
   toast(`Sheetsへ保存中… (0/${total})`);
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   try{
     for(let i=0;i<total;i++){
-      const chunk=b64.substring(i*CH,(i+1)*CH);
-      const qs='action=savechunk&nonce='+encodeURIComponent(nonce)+'&i='+i+'&n='+total+'&gz=1&d='+encodeURIComponent(chunk);
+      const chunk=chunks[i];
+      const encChunk=encodeURIComponent(chunk);
+      const qs='action=savechunk&nonce='+encodeURIComponent(nonce)+'&i='+i+'&n='+total+'&gz=1&d='+encChunk;
+      console.log('[saveToSheets] chunk',i+1,'/',total,'raw len=',chunk.length,'enc len=',encChunk.length,'full url len=',(url+'?'+qs).length);
       let res=null,lastErr=null;
       for(let attempt=1;attempt<=4;attempt++){
         try{
@@ -605,14 +620,17 @@ async function saveToSheets(){
         if(attempt<4){toast(`Sheetsへ保存中… (${i+1}/${total}) 再試行${attempt}`);await sleep(600*attempt);}
       }
       console.log('[saveToSheets] chunk',i+1,'/',total,'final resp=',res);
-      if(!res||res.ok!==true)throw lastErr||new Error('chunk '+i+' failed after retries');
+      if(!res||res.ok!==true){
+        console.log('[saveToSheets] FAILING CHUNK preview:',chunk.substring(0,60),'...',chunk.substring(chunk.length-20));
+        throw lastErr||new Error('chunk '+i+' failed after retries');
+      }
       toast(`Sheetsへ保存中… (${i+1}/${total})`);
-      if(i<total-1)await sleep(350); // 連続送信を避けるための間隔
+      if(i<total-1)await sleep(350);
     }
     toast('Sheetsへ保存しました（確認済み）');
   }catch(e){
     console.log('[saveToSheets] FAILED:',e);
-    alert('保存に失敗しました。\n'+e.message+'\n\nF12コンソールに詳細ログがあります。GASコードがv7（GET方式）に更新されているか、新バージョンで再デプロイされているかをご確認ください。');
+    alert('保存に失敗しました。\n'+e.message+'\n\nF12コンソールに詳細ログ（特に full url len の数値）があります。それを教えていただければ次の手を確定できます。');
   }
 }
 function verifyByLoad(url,nonce,attempt){
