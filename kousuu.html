@@ -273,7 +273,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build22</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build23</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -559,27 +559,50 @@ function restoreJSON(input){const f=input.files[0];if(!f)return;const rd=new Fil
 function renderSave(){const ck=document.getElementById('autosaveCk');if(ck)ck.checked=autosave;const u=document.getElementById('gasUrl');if(u&&!u.value){try{u.value=localStorage.getItem(LS_URL)||'';}catch(e){}}setSaveStatus(_lastSaved!=='');}
 function getGasUrl(){return (document.getElementById('gasUrl')?.value||'').trim();}
 function saveGasUrl(){try{localStorage.setItem(LS_URL,getGasUrl());}catch(e){}}
+function gget_(url){
+  return new Promise((resolve,reject)=>{
+    const cb='__gas_g_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
+    const s=document.createElement('script');
+    let done=false;
+    const timer=setTimeout(()=>{if(!done){done=true;delete window[cb];s.remove();reject(new Error('timeout'));}},10000);
+    window[cb]=res=>{if(done)return;done=true;clearTimeout(timer);delete window[cb];s.remove();resolve(res);};
+    s.onerror=()=>{if(done)return;done=true;clearTimeout(timer);delete window[cb];s.remove();reject(new Error('script load error'));};
+    s.src=url+(url.includes('?')?'&':'?')+'callback='+cb;document.body.appendChild(s);
+  });
+}
 async function saveToSheets(){
   const url=getGasUrl();if(!url){alert('GAS WebアプリURLを入力してください。');return;}
-  saveGasUrl();toast('Sheetsへ保存中…');
+  saveGasUrl();
   const nonce=String(Date.now());
-  const data=snapshot();
-  const payload=JSON.stringify({action:'save',nonce:nonce,data:data});
-  console.log('[saveToSheets] url=',url);
-  console.log('[saveToSheets] nonce=',nonce,' payload bytes=',new Blob([payload]).size);
-  // CORSで応答は読めないが、ブラウザがリクエストを送ってさえいれば doPost は実行され保存される。
-  // (応答読み取りで例外が出ても「失敗」とは判定しない)
-  fetch(url,{method:'POST',body:payload}).then(r=>{console.log('[saveToSheets] fetch responded. status=',r.status);}).catch(e=>{console.log('[saveToSheets] fetch response read blocked (no-cors相当・想定内):',e&&e.message);});
+  const json=JSON.stringify(snapshot());
+  let b64;
   try{
-    let ifr=document.getElementById('gas_ifr');
-    if(!ifr){ifr=document.createElement('iframe');ifr.id='gas_ifr';ifr.name='gas_ifr';ifr.style.display='none';document.body.appendChild(ifr);}
-    const f=document.createElement('form');f.method='POST';f.action=url;f.target='gas_ifr';f.style.display='none';
-    const inp=document.createElement('input');inp.type='hidden';inp.name='payload';inp.value=payload;f.appendChild(inp);
-    document.body.appendChild(f);f.submit();
-    console.log('[saveToSheets] form submitted to',url);
-    setTimeout(()=>{try{f.remove();}catch(_){}},15000);
-  }catch(e){console.log('[saveToSheets] form submit THREW:',e);}
-  setTimeout(()=>verifyByLoad(url,nonce,1),1800);
+    const cs=new CompressionStream('gzip');
+    const blob=new Blob([json]);
+    const compressed=await new Response(blob.stream().pipeThrough(cs)).arrayBuffer();
+    let bin='';const bytes=new Uint8Array(compressed);
+    for(let i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
+    b64=btoa(bin);
+  }catch(e){console.log('[save] compression unsupported, fallback to plain b64:',e&&e.message);
+    b64=btoa(unescape(encodeURIComponent(json)));}
+  const CH=3000;
+  const total=Math.ceil(b64.length/CH);
+  console.log('[saveToSheets] url=',url,' b64 chars=',b64.length,' chunks=',total);
+  toast(`Sheetsへ保存中… (0/${total})`);
+  try{
+    for(let i=0;i<total;i++){
+      const chunk=b64.substring(i*CH,(i+1)*CH);
+      const qs='action=savechunk&nonce='+encodeURIComponent(nonce)+'&i='+i+'&n='+total+'&gz=1&d='+encodeURIComponent(chunk);
+      const res=await gget_(url+'?'+qs);
+      console.log('[saveToSheets] chunk',i+1,'/',total,'resp=',res);
+      toast(`Sheetsへ保存中… (${i+1}/${total})`);
+      if(!res||res.ok!==true)throw new Error('chunk '+i+' failed: '+(res&&res.error));
+    }
+    toast('Sheetsへ保存しました（確認済み）');
+  }catch(e){
+    console.log('[saveToSheets] FAILED:',e);
+    alert('保存に失敗しました。\n'+e.message+'\n\nF12コンソールに詳細ログがあります。GASコードがv6（GET方式）に更新されているか、新バージョンで再デプロイされているかをご確認ください。');
+  }
 }
 function verifyByLoad(url,nonce,attempt){
   attempt=attempt||1;
