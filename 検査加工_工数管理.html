@@ -564,6 +564,7 @@ function saveToSheets(){
   saveGasUrl();toast('Sheetsへ保存中…');
   const nonce=String(Date.now());
   const payload=JSON.stringify({action:'save',nonce:nonce,data:snapshot()});
+  try{fetch(url,{method:'POST',body:payload});}catch(_){}
   let ifr=document.getElementById('gas_ifr');
   if(!ifr){ifr=document.createElement('iframe');ifr.id='gas_ifr';ifr.name='gas_ifr';ifr.style.display='none';document.body.appendChild(ifr);}
   const f=document.createElement('form');f.method='POST';f.action=url;f.target='gas_ifr';f.style.display='none';
@@ -578,7 +579,7 @@ function verifyByLoad(url,nonce,attempt){
   window[cb]=res=>{delete window[cb];s.remove();
     if(res&&res.nonce!=null&&String(res.nonce)===String(nonce)){toast('Sheetsへ保存しました（確認済み'+(res.ts?' '+res.ts:'')+'）');return;}
     if(attempt<5){setTimeout(()=>verifyByLoad(url,nonce,attempt+1),1500);return;}
-    alert('保存が確認できませんでした。\n数十秒おいて「接続テスト」を押し「保存データあり」に変われば、保存は成功しています（確認が間に合わなかっただけ）。\nそれでもダメなら：アクセス権「全員」／v3で再デプロイ／URL末尾 /exec を確認。');};
+    alert('保存が確認できませんでした。'+(res&&res.lastError?('\n▶サーバ側エラー: '+res.lastError):'')+'\n数十秒おいて「接続テスト」で「保存データあり」に変われば保存成功です。\nそれでもダメなら：v4で再デプロイ／アクセス権「全員」／URL末尾 /exec を確認。');};
   s.onerror=()=>{delete window[cb];s.remove();
     if(attempt<5){setTimeout(()=>verifyByLoad(url,nonce,attempt+1),1500);return;}
     alert('保存後の確認に失敗しました。URL／デプロイ設定をご確認ください。');};
@@ -588,7 +589,7 @@ function testGas(){
   const url=getGasUrl();if(!url){alert('GAS WebアプリURLを入力してください。');return;}saveGasUrl();
   const cb='__gas_pg_'+Date.now(),s=document.createElement('script');
   window[cb]=res=>{delete window[cb];s.remove();
-    if(res&&res.ok)toast('接続OK'+(res.ver?(' v'+res.ver):'')+' '+(res.hasData?('／ 保存データあり'+(res.ts?'（'+res.ts+'）':'')):'／ データ未保存'));
+    if(res&&res.ok){toast('接続OK'+(res.ver?(' v'+res.ver):'')+' '+(res.hasData?('／ 保存データあり'+(res.ts?'（'+res.ts+'）':'')):'／ データ未保存'));if(res.lastError)alert('前回の保存でサーバ側エラーが記録されています:\n'+res.lastError);}
     else alert('応答が不正です。GASコード／デプロイをご確認ください。');};
   s.onerror=()=>{delete window[cb];s.remove();alert('接続できません。\n・URLは末尾が /exec か\n・デプロイのアクセス権は「全員」か\nをご確認ください。');};
   s.src=url+(url.includes('?')?'&':'?')+'action=ping&callback='+cb;document.body.appendChild(s);
@@ -606,9 +607,10 @@ function sheet_(){ var ss=ss_(); return ss.getSheetByName('data')||ss.insertShee
 function doGet(e){
   var p=(e&&e.parameter)||{}; var cb=p.callback||'callback';
   var sh=sheet_();
-  var a1=sh.getRange('A1').getValue(), ts=sh.getRange('B1').getValue(), nonce=sh.getRange('C1').getValue();
+  var a1=sh.getRange('A1').getValue(), ts=sh.getRange('B1').getValue();
+  var nonce=sh.getRange('C1').getValue(), lastErr=sh.getRange('D1').getValue();
   var out;
-  if(p.action==='ping'){ out={ok:true,ver:'3',hasData:!!a1,ts:ts?String(ts):'',nonce:nonce}; }
+  if(p.action==='ping'){ out={ok:true,ver:'4',hasData:!!a1,ts:ts?String(ts):'',nonce:nonce,lastError:lastErr?String(lastErr):''}; }
   else{ var data=null; try{ if(a1) data=JSON.parse(a1); }catch(err){} out={data:data,ts:ts?String(ts):'',nonce:nonce}; }
   return ContentService.createTextOutput(cb+'('+JSON.stringify(out)+')')
     .setMimeType(ContentService.MimeType.JAVASCRIPT);
@@ -616,18 +618,19 @@ function doGet(e){
 function doPost(e){
   var res={ok:false};
   try{
+    var sh=sheet_();
     var raw=(e&&e.parameter&&e.parameter.payload)?e.parameter.payload:(e&&e.postData?e.postData.contents:'{}');
     var body=JSON.parse(raw);
     if(body.action==='save'){
-      var sh=sheet_(); var now=new Date();
+      var now=new Date();
       sh.getRange('A1').setValue(JSON.stringify(body.data));
       sh.getRange('B1').setValue(now);
       sh.getRange('C1').setValue(body.nonce||'');
+      sh.getRange('D1').setValue('');
       res={ok:true,ts:Utilities.formatDate(now,Session.getScriptTimeZone(),'MM/dd HH:mm')};
     }
-  }catch(err){res.error=String(err);}
-  return ContentService.createTextOutput(JSON.stringify(res))
-    .setMimeType(ContentService.MimeType.JSON);
+  }catch(err){ res.error=String(err); try{ sheet_().getRange('D1').setValue(String(err)); }catch(e2){} }
+  return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
 }`;
 function toggleGasCode(){const el=document.getElementById('gasCode');if(el.style.display==='none'){el.textContent=GASCODE;el.style.display='block';}else el.style.display='none';}
 function setupDropzone(){const dz=document.getElementById('dz');
