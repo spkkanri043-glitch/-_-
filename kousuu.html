@@ -76,7 +76,7 @@ main{max-width:1180px;margin:0 auto;padding:22px}
 .kpi.ok{background:var(--ok-soft);border-color:#bfe0d8}.kpi.ok .val{color:var(--ok)}
 .kpi.warn{background:var(--warn-soft);border-color:#ecd9a8}.kpi.warn .val{color:var(--warn)}
 .kpi.over{background:var(--over-soft);border-color:#eec3bb}.kpi.over .val{color:var(--over)}
-@media(max-width:880px){.kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(4,1fr)}}@media(max-width:880px){.kpis{grid-template-columns:repeat(2,1fr)}}
 .panels{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:880px){.panels{grid-template-columns:1fr}}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
@@ -157,7 +157,7 @@ svg text{font-variant-numeric:tabular-nums}
 </header>
 <main>
   <section class="view on" id="view-dash">
-    <div class="kpis" id="kpis"></div>
+    <div class="kpis" id="kpis" style="grid-template-columns:repeat(7,1fr)"></div>
     <div class="panel" id="progPanel" style="margin-bottom:16px"></div>
     <div class="panels">
       <div class="panel"><h3>得意先別 必要工数</h3><p class="hint" id="custHint"></p><div id="custChart"></div></div>
@@ -246,7 +246,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build35</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build37</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -284,7 +284,9 @@ function capacityFor(p){const c=capRow(p);return (c?c.days:0)*dailyBase()+otFor(
 function totalsFor(p){
   const rows=rowsFor(p),req=rows.reduce((s,m)=>s+reqHrs(m),0),reqSafe=req*(1+state.safetyPct/100);
   const cap=capacityFor(p),util=cap>0?reqSafe/cap*100:0,c=capRow(p);
-  return {req,reqSafe,cap,util,days:c?c.days:0,shortfall:reqSafe-cap};
+  const capBase=(c?c.days:0)*dailyBase(); // 残業なし能力
+  const utilBase=capBase>0?reqSafe/capBase*100:0;
+  return {req,reqSafe,cap,util,days:c?c.days:0,shortfall:reqSafe-cap,capBase,utilBase};
 }
 function byCustomer(p){const map={};rowsFor(p).forEach(m=>{map[m.customer]=(map[m.customer]||0)+reqHrs(m)});
   return Object.entries(map).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);}
@@ -293,12 +295,16 @@ const utilClass=u=>u>100?'over':(u>=85?'warn':'ok');
 function renderKPIs(){
   const t=totalsFor(state.period),uc=utilClass(t.util),ot=otFor(state.period);
   const shortTxt=t.shortfall>0?('不足 '+fmt(t.shortfall)+'h'):('余裕 '+fmt(-t.shortfall)+'h');
+  const ucBase=utilClass(t.utilBase);
+  const shortfallBase=t.reqSafe-t.capBase;
   document.getElementById('kpis').innerHTML=`
     <div class="kpi"><div class="lab">必要工数</div><div class="val num">${fmt(t.req)}<small>h</small></div><div class="meta">${monthLbl(state.period)}・${t.days}稼働日</div></div>
     <div class="kpi"><div class="lab">安全込み必要</div><div class="val num">${fmt(t.reqSafe)}<small>h</small></div><div class="meta">安全率 +${state.safetyPct}%</div></div>
-    <div class="kpi"><div class="lab">能力</div><div class="val num">${fmt(t.cap)}<small>h</small></div><div class="meta">${t.days}日 × ${fmt(dailyBase())}h${ot?(' ＋残業'+fmt(ot)+'h'):''}（${totalWorkers()}人）</div></div>
-    <div class="kpi ${uc}"><div class="lab">稼働率</div><div class="val num">${fmt(t.util,0)}<small>%</small></div><div class="meta">安全込み ÷ 能力</div></div>
-    <div class="kpi ${uc}"><div class="lab">過不足</div><div class="val num">${t.shortfall>0?'+':''}${fmt(t.shortfall)}<small>h</small></div><div class="meta">${shortTxt}</div></div>`;
+    <div class="kpi"><div class="lab">能力（残業込み）</div><div class="val num">${fmt(t.cap)}<small>h</small></div><div class="meta">${t.days}日 × ${fmt(dailyBase())}h${ot?(' ＋残業'+fmt(ot)+'h'):''}（${totalWorkers()}人）</div></div>
+    <div class="kpi"><div class="lab">能力（残業なし）</div><div class="val num">${fmt(t.capBase)}<small>h</small></div><div class="meta">${t.days}日 × ${fmt(dailyBase())}h × ${totalWorkers()}人のみ</div></div>
+    <div class="kpi ${uc}"><div class="lab">稼働率（残業込み）</div><div class="val num">${fmt(t.util,0)}<small>%</small></div><div class="meta">安全込み ÷ 残業込み能力</div></div>
+    <div class="kpi ${ucBase}"><div class="lab">稼働率（残業なし）</div><div class="val num">${fmt(t.utilBase,0)}<small>%</small></div><div class="meta">安全込み ÷ 残業なし能力</div></div>
+    <div class="kpi ${uc}"><div class="lab">過不足（残業込み）</div><div class="val num">${t.shortfall>0?'+':''}${fmt(t.shortfall)}<small>h</small></div><div class="meta">${shortTxt}</div></div>`;
   document.getElementById('capReadout').textContent=fmt(dailyBase());
 }
 function renderCustChart(){
@@ -596,12 +602,17 @@ async function saveToSheets(){
     for(let ci=0;ci<custs.length;ci++){
       const cust=custs[ci];
       const json=JSON.stringify({parts:state.parts.filter(p=>p.customer===cust),monthly:state.monthly.filter(m=>m.customer===cust)});
-      const b64=btoa(unescape(encodeURIComponent(json)));
+      // UTF-8バイト列を経由した確実なbase64エンコード（GAS側の base64Decode と対応）
+      const utf8bytes=new TextEncoder().encode(json);
+      let bin='';utf8bytes.forEach(b=>bin+=String.fromCharCode(b));
+      const b64=btoa(bin);
       await sendChunksConcurrent_(url,'custchunk','&cust='+encodeURIComponent(cust),b64,nonce,cust);
       toast(`Sheetsへ保存中… (${ci+1}/${custs.length+1}) ${cust} 完了`);
     }
     const metaJson=JSON.stringify({capacity:state.capacity,roster:state.roster,safetyPct:state.safetyPct});
-    const metaB64=btoa(unescape(encodeURIComponent(metaJson)));
+    const metaUtf8=new TextEncoder().encode(metaJson);
+    let metaBin='';metaUtf8.forEach(b=>metaBin+=String.fromCharCode(b));
+    const metaB64=btoa(metaBin);
     await sendChunksConcurrent_(url,'metachunk','',metaB64,nonce,'共通設定');
     toast('Sheetsへ保存しました（全'+custs.length+'取引先）');
   }catch(e){
