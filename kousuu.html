@@ -246,7 +246,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build38</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build39</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -528,7 +528,7 @@ function exportCSV(kind){
 function exportJSON(){dl('工数管理データ.json',JSON.stringify({parts:state.parts,monthly:state.monthly,capacity:state.capacity,roster:state.roster,actualAsOf:state.actualAsOf,settings:{safetyPct:state.safetyPct}},null,2),'application/json');}
 
 function snapshot(){return {parts:state.parts,monthly:state.monthly,capacity:state.capacity,roster:state.roster,actualAsOf:state.actualAsOf,settings:{safetyPct:state.safetyPct}};}
-function applySnapshot(s){if(!s)return;if(s.parts)state.parts=s.parts;if(s.monthly)state.monthly=s.monthly;if(s.capacity)state.capacity=s.capacity;if(s.roster)state.roster=s.roster;if(s.actualAsOf)state.actualAsOf=s.actualAsOf;const sp=(s.settings&&s.settings.safetyPct!=null)?s.settings.safetyPct:s.safetyPct;if(sp!=null)state.safetyPct=sp;if(!periods().includes(state.period))state.period=periods().slice(-1)[0];}
+function applySnapshot(s){if(!s)return;if(s.parts)state.parts=s.parts;if(s.monthly)state.monthly=s.monthly;if(s.capacity)state.capacity=s.capacity;if(s.roster)state.roster=s.roster;if(s.actualAsOf)state.actualAsOf=s.actualAsOf;const sp=(s.settings&&s.settings.safetyPct!=null)?s.settings.safetyPct:s.safetyPct;if(sp!=null)state.safetyPct=sp;if(typeof periods==='function'&&state.capacity&&state.capacity.length&&!periods().includes(state.period))state.period=periods().slice(-1)[0];}
 function setSaveStatus(ok,msg){const el=document.getElementById('saveStatus');if(!el)return;if(!autosave){el.innerHTML='自動保存: <b>無効</b>（変更は保存されません）';el.style.color='var(--muted)';return;}const t=new Date().toLocaleTimeString('ja-JP');el.innerHTML=ok?('自動保存: <b>有効</b> ／ 最終保存 '+t):('このプレビューでは自動保存が使えません。ファイルをダウンロードして開くと有効になります。'+(msg?'<br><span style="color:var(--faint)">'+msg+'</span>':''));el.style.color=ok?'var(--ok)':'var(--over)';}
 function saveLocal(force){if(!autosave&&!force)return;try{const s=JSON.stringify(snapshot());if(!force&&s===_lastSaved)return;localStorage.setItem(LS_KEY,s);_lastSaved=s;setSaveStatus(true);}catch(e){setSaveStatus(false,e&&e.message);}}
 function loadLocal(){try{const t=localStorage.getItem(LS_KEY);if(t){applySnapshot(JSON.parse(t));_lastSaved=t;return true;}}catch(e){}return false;}
@@ -714,6 +714,7 @@ function init(){
     gget_(url+'?action=loadall').then(res=>{
       if(res&&res.ok&&res.data&&res.data.parts&&res.data.parts.length>0){
         applySnapshot(res.data);
+        if(state.capacity&&state.capacity.length)state.period=state.capacity[state.capacity.length-1].period;
         document.getElementById('safetyIn').value=state.safetyPct;
         fillPeriodSel();renderAll();
         toast('Sheetsから読み込みました');
