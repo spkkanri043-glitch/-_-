@@ -246,7 +246,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build39</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build40</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -260,7 +260,8 @@ const state={
   actualAsOf:{},
   safetyPct:10,period:null,planCust:'',imp:null
 };
-state.period=state.capacity[state.capacity.length-1].period;
+state.period=state.capacity&&state.capacity.length?state.capacity[state.capacity.length-1].period:null;
+const GAS_URL='https://script.google.com/macros/s/AKfycbzqnH5FTM_JwNgFsSIVd9gxvTh1Hf7E3OqIslsUCCMrfjfzUZfGmnIELCDcM0ph3Isk/exec';
 const LS_KEY='kousuu_kanri_v1',LS_URL='kousuu_kanri_gasurl';
 let autosave=true,_lastSaved='';
 
@@ -505,7 +506,7 @@ function applyImport(){
   saveToSheets().catch(e=>console.warn('[autoSave after import]',e));
 }
 
-function fillPeriodSel(){document.getElementById('periodSel').innerHTML=periods().map(p=>`<option value="${p}" ${p===state.period?'selected':''}>${p}（${monthLbl(p)}）</option>`).join('');}
+function fillPeriodSel(){const ps=periods();document.getElementById('periodSel').innerHTML=ps.length?ps.map(p=>`<option value="${p}" ${p===state.period?'selected':''}>${p}（${monthLbl(p)}）</option>`).join(''):('<option value="">（データ未取得）</option>');}
 function onPeriod(){state.period=document.getElementById('periodSel').value;renderAll();}
 function jump(p){state.period=p;document.getElementById('periodSel').value=p;renderAll();}
 function onSafety(){state.safetyPct=Math.max(0,parseFloat(document.getElementById('safetyIn').value)||0);renderKPIs();renderTrend();}
@@ -537,7 +538,6 @@ function toggleAutosave(on){autosave=on;if(on)saveLocal(true);else setSaveStatus
 function confirmClearLocal(){if(confirm('このブラウザに保存したデータを消去しますか？（画面の表示内容は残ります）')){clearLocal();toast('保存データを消去しました');setSaveStatus(false);}}
 function restoreJSON(input){const f=input.files[0];if(!f)return;const rd=new FileReader();rd.onload=e=>{try{applySnapshot(JSON.parse(e.target.result));fillPeriodSel();renderAll();saveLocal(true);toast('JSONから復元しました');}catch(err){alert('復元エラー: '+err.message);}input.value='';};rd.readAsText(f);}
 function renderSave(){setSaveStatus(_lastSaved!=='');}
-const GAS_URL='https://script.google.com/macros/s/AKfycbzqnH5FTM_JwNgFsSIVd9gxvTh1Hf7E3OqIslsUCCMrfjfzUZfGmnIELCDcM0ph3Isk/exec';
 function getGasUrl(){return GAS_URL;}
 function saveGasUrl(){/* URL固定のため不要 */}
 function gget_(url){
@@ -704,7 +704,7 @@ function renderProgress(){
   el.innerHTML=`<h3>計画 vs 実績（進捗）${asof?`<span class="asof">実績 as of ${asof}</span>`:''}</h3>
     <div class="progtop"><div><span>計画工数</span><b class="num">${fmt(planT)}h</b></div><div><span>実績工数</span><b class="num">${fmt(actT)}h</b></div><div><span>進捗率</span><b class="num">${fmt(rate,0)}%</b></div><div><span>残り</span><b class="num">${fmt(planT-actT)}h</b></div></div>${rows}`;
 }
-function renderAll(){renderKPIs();renderCustChart();renderTrend();renderProgress();renderPlan();}
+function renderAll(){if(!state.capacity||!state.capacity.length)return;renderKPIs();renderCustChart();renderTrend();renderProgress();renderPlan();}
 function init(){
   document.getElementById('safetyIn').value=state.safetyPct;
   setupDropzone();setSaveStatus(false);
