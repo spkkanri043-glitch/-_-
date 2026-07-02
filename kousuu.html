@@ -221,32 +221,7 @@ svg text{font-variant-numeric:tabular-nums}
   </section>
 
   <section class="view" id="view-save">
-    <div class="cards2">
-      <div class="tablewrap">
-        <div class="tabletop"><h3>このブラウザに保存</h3><span class="chip">試用におすすめ</span></div>
-        <div style="padding:16px">
-          <label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="autosaveCk" onchange="toggleAutosave(this.checked)"> 自動保存を有効にする（このPCのブラウザ内）</label>
-          <p class="hint" id="saveStatus" style="margin:12px 0 0">—</p>
-          <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn" onclick="saveLocal(true)">今すぐ保存</button>
-            <button class="btn" onclick="confirmClearLocal()">保存データを消去</button>
-          </div>
-          <p class="hint" style="margin-top:12px">同じPC・同じブラウザで開き直すと入力内容が自動で復元されます。少し登録して様子見するならこれが手軽です。</p>
-        </div>
-      </div>
-      <div class="tablewrap">
-        <div class="tabletop"><h3>ファイルでバックアップ</h3></div>
-        <div style="padding:16px">
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn pri" onclick="exportJSON()">バックアップ保存(JSON)</button>
-            <input id="restoreIn" type="file" accept=".json" style="display:none" onchange="restoreJSON(this)">
-            <button class="btn" onclick="document.getElementById('restoreIn').click()">JSONから復元</button>
-          </div>
-          <p class="hint" style="margin-top:12px">PCを変える・世代を残すときに。復元すると現在の内容を置き換えます。</p>
-        </div>
-      </div>
-    </div>
-    <div class="tablewrap" style="margin-top:16px">
+    <div class="tablewrap">
       <div class="tabletop"><h3>Google Sheets 連携</h3><span class="chip">任意・本番用（複数人で共有）</span></div>
       <div style="padding:16px">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -257,7 +232,7 @@ svg text{font-variant-numeric:tabular-nums}
           <button class="btn" onclick="toggleGasCode()">GASコードを表示</button>
         </div>
         <pre id="gasCode" style="display:none;margin-top:14px;background:#1c2128;color:#d7dde3;padding:14px;border-radius:8px;overflow:auto;font-size:12px;line-height:1.5;max-height:340px"></pre>
-        <p class="hint" style="margin-top:12px">手順：①保存先スプレッドシートを開き <b>拡張機能→Apps Script</b> に同梱の <b>gas_工数管理.gs</b> を貼る（こうするとシートに紐づきます）。別に作ったスクリプトの場合はコード冒頭の <b>SHEET_ID</b> に保存先シートのID（URLの /d/ と /edit の間）を貼る。②デプロイ→<b>新しいデプロイ</b>→ウェブアプリ→<b>アクセス：全員</b>→末尾 <b>/exec</b> のURLを上に貼付。③「接続テスト」→「Sheetsへ保存」。<br>つまずき時：getActive()がnull＝スクリプトがシートに未紐づけ → SHEET_ID を設定。他に①アクセス権「全員」②変更後は新バージョンで再デプロイ③URL /exec を確認。</p>
+        <p class="hint" style="margin-top:12px">手順：①保存先スプレッドシートを開き <b>拡張機能→Apps Script</b> に同梱の <b>gas_工数管理.gs</b> を貼る（こうするとシートに紐づきます）。別に作ったスクリプトの場合はコード冒頭の <b>SHEET_ID</b> に保存先シートのID（URLの /d/ と /edit の間）を貼る。②デプロイ→<b>新しいデプロイ</b>→ウェブアプリ→<b>アクセス：全員</b>→末尾 <b>/exec</b> のURLを上に貼付。③「接続テスト」→「Sheetsへ保存」。<br>つまずき時：getActive()がnull＝スクリプトがシートに未紐づけ → SHEET_ID を設定。他に①アクセス権「全員」②変更後は新バージョンで再デプロイ③URL /exec を確認。<br><span style="color:var(--faint)">データは保存ボタンを押すたびにローカルにも自動退避します。万一Sheets接続が切れてもJSONエクスポートで復旧できます（上部ボタン「JSON書き出し」）。</span></p>
       </div>
     </div>
   </section>
@@ -271,7 +246,7 @@ svg text{font-variant-numeric:tabular-nums}
         <tbody id="masterBody"></tbody></table></div>
     </div>
   </section>
-  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build33</div>
+  <div class="foot">検査加工工程 工数管理（単独版・ブラウザ内データ）／ データは画面内のみ・CSVで Sheets 移行可 ・ build34</div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -554,7 +529,7 @@ function clearLocal(){try{localStorage.removeItem(LS_KEY);}catch(e){}_lastSaved=
 function toggleAutosave(on){autosave=on;if(on)saveLocal(true);else setSaveStatus(false);}
 function confirmClearLocal(){if(confirm('このブラウザに保存したデータを消去しますか？（画面の表示内容は残ります）')){clearLocal();toast('保存データを消去しました');setSaveStatus(false);}}
 function restoreJSON(input){const f=input.files[0];if(!f)return;const rd=new FileReader();rd.onload=e=>{try{applySnapshot(JSON.parse(e.target.result));fillPeriodSel();renderAll();saveLocal(true);toast('JSONから復元しました');}catch(err){alert('復元エラー: '+err.message);}input.value='';};rd.readAsText(f);}
-function renderSave(){const ck=document.getElementById('autosaveCk');if(ck)ck.checked=autosave;setSaveStatus(_lastSaved!=='');}
+function renderSave(){setSaveStatus(_lastSaved!=='');}
 const GAS_URL='https://script.google.com/macros/s/AKfycbzqnH5FTM_JwNgFsSIVd9gxvTh1Hf7E3OqIslsUCCMrfjfzUZfGmnIELCDcM0ph3Isk/exec';
 function getGasUrl(){return GAS_URL;}
 function saveGasUrl(){/* URL固定のため不要 */}
@@ -716,7 +691,6 @@ function init(){
   loadLocal();
   document.getElementById('safetyIn').value=state.safetyPct;
   fillPeriodSel();renderAll();setupDropzone();
-  const ck=document.getElementById('autosaveCk');if(ck)ck.checked=autosave;
   setInterval(()=>{if(autosave)saveLocal();},2500);
   window.addEventListener('beforeunload',()=>{if(autosave)saveLocal();});
   setSaveStatus(_lastSaved!=='');
